@@ -11,15 +11,32 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
+import com.mimo.draw.engine.BitmapPool
+import com.mimo.draw.engine.FilterEngine
+import com.mimo.draw.engine.LayerBitmapManager
+import com.mimo.draw.engine.PressureEngine
+import com.mimo.draw.engine.EnhancedDrawingRenderer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
 
 class DrawingViewModel : ViewModel() {
+    private val bitmapPool = BitmapPool()
+    private val layerManager = LayerBitmapManager(bitmapPool)
+    private val filterEngine = FilterEngine(bitmapPool)
+    private val pressureEngine = PressureEngine()
+    private val renderer = EnhancedDrawingRenderer(bitmapPool, layerManager)
 
     private val _state = MutableStateFlow(DrawingState())
     val state: StateFlow<DrawingState> = _state.asStateFlow()
+
+    private var pendingPressures = ArrayList<Float>()
+
+    fun initialize(width: Int, height: Int) {
+        renderer.initialize(width, height)
+        layerManager.createLayer("default", width, height)
+    }
 
     fun onToolSelected(tool: Tool) {
         _state.value = _state.value.copy(
@@ -48,6 +65,15 @@ class DrawingViewModel : ViewModel() {
         _state.value = _state.value.copy(panOffset = offset)
     }
 
+    fun togglePressure() {
+        _state.value = _state.value.copy(pressureEnabled = !_state.value.pressureEnabled)
+    }
+
+    fun onPressureSensitivityChanged(sensitivity: Float) {
+        _state.value = _state.value.copy(pressureSensitivity = sensitivity)
+        pressureEngine.sensitivity = sensitivity
+    }
+
     fun toggleSymmetry() {
         _state.value = _state.value.copy(isSymmetryEnabled = !_state.value.isSymmetryEnabled)
     }
@@ -68,7 +94,7 @@ class DrawingViewModel : ViewModel() {
         _state.value = _state.value.copy(snapToGrid = !_state.value.snapToGrid)
     }
 
-    fun onTouchStart(position: Offset) {
+    fun onTouchStart(position: Offset, pressure: Float = 0.5f) {
         val currentState = _state.value
         val adjustedPosition = if (currentState.snapToGrid) {
             snapToGrid(position, currentState.gridSize)
@@ -76,13 +102,14 @@ class DrawingViewModel : ViewModel() {
             position
         }
 
+        pendingPressures.clear()
+        pendingPressures.add(pressure)
+
+        renderer.startNewStroke()
+
         when {
-            currentState.selectedTool == Tool.EYEDROPPER -> {
-                return
-            }
-            currentState.selectedTool == Tool.FILL -> {
-                return
-            }
+            currentState.selectedTool == Tool.EYEDROPPER -> return
+            currentState.selectedTool == Tool.FILL -> return
             currentState.selectedTool == Tool.MOVE -> {
                 _state.value = currentState.copy(isPanning = true)
                 return
@@ -127,25 +154,31 @@ class DrawingViewModel : ViewModel() {
                 _state.value = currentState.copy(currentShape = shape)
             }
             else -> {
+                val effectiveWidth = if (currentState.pressureEnabled) {
+                    currentState.strokeWidth * pressure
+                } else {
+                    currentState.strokeWidth
+                }
+
                 val path = DrawPath(
                     points = listOf(adjustedPosition),
+                    pressures = listOf(pressure),
                     color = if (currentState.selectedTool == Tool.ERASER) currentState.canvasBackground else currentState.selectedColor,
-                    strokeWidth = currentState.strokeWidth,
+                    strokeWidth = effectiveWidth,
                     tool = currentState.selectedTool,
                     alpha = currentState.alpha,
-                    layerId = currentState.activeLayerId
+                    layerId = currentState.activeLayerId,
+                    usePressure = currentState.pressureEnabled
                 )
                 _state.value = currentState.copy(currentPath = path)
             }
         }
     }
 
-    fun onTouchMove(position: Offset) {
+    fun onTouchMove(position: Offset, pressure: Float = 0.5f) {
         val currentState = _state.value
         if (currentState.isPanning) {
-            _state.value = currentState.copy(
-                panOffset = currentState.panOffset + position
-            )
+            _state.value = currentState.copy(panOffset = currentState.panOffset + position)
             return
         }
 
@@ -155,15 +188,41 @@ class DrawingViewModel : ViewModel() {
             position
         }
 
+        pendingPressures.add(pressure)
+
         when {
             currentState.currentShape != null -> {
-                val shape = currentState.currentShape.copy(end = adjustedPosition)
-                _state.value = currentState.copy(currentShape = shape)
+                _state.value = currentState.copy(
+                    currentShape = currentState.currentShape.copy(end = adjustedPosition)
+                )
             }
             currentState.currentPath != null -> {
                 val points = currentState.currentPath.points + adjustedPosition
-                val path = currentState.currentPath.copy(points = points)
-                _state.value = currentState.copy(currentPath = path)
+                val pressures = currentState.currentPath.pressures + pressure
+                val effectiveWidth = if (currentState.pressureEnabled) {
+                    currentState.strokeWidth * pressure
+                } else {
+                    currentState.strokeWidth
+                }
+                _state.value = currentState.copy(
+                    currentPath = currentState.currentPath.copy(
+                        points = points,
+                        pressures = pressures,
+                        strokeWidth = effectiveWidth
+                    )
+                )
+
+                if (currentState.pressureEnabled && points.size >= 2) {
+                    renderer.renderStrokeIncremental(
+                        layerId = currentState.activeLayerId,
+                        point = adjustedPosition,
+                        pressure = pressure,
+                        color = currentState.currentPath.color,
+                        strokeWidth = currentState.strokeWidth,
+                        tool = currentState.currentPath.tool,
+                        alpha = currentState.alpha
+                    )
+                }
             }
         }
     }
@@ -178,6 +237,18 @@ class DrawingViewModel : ViewModel() {
 
         currentState.currentPath?.let { path ->
             if (path.points.size > 1) {
+                if (currentState.pressureEnabled) {
+                    renderer.renderStroke(
+                        layerId = path.layerId,
+                        points = path.points,
+                        pressures = path.pressures,
+                        color = path.color,
+                        strokeWidth = currentState.strokeWidth,
+                        tool = path.tool,
+                        alpha = path.alpha
+                    )
+                }
+
                 val action = DrawingAction.AddPath(path)
                 _state.value = currentState.copy(
                     paths = currentState.paths + path,
@@ -198,6 +269,9 @@ class DrawingViewModel : ViewModel() {
                 redoStack = emptyList()
             )
         }
+
+        pendingPressures.clear()
+        updateBitmapPoolStats()
     }
 
     fun undo() {
@@ -286,10 +360,7 @@ class DrawingViewModel : ViewModel() {
             currentState.texts.isEmpty() && currentState.images.isEmpty()) return
 
         val action = DrawingAction.ClearCanvas(
-            currentState.paths,
-            currentState.shapes,
-            currentState.texts,
-            currentState.images
+            currentState.paths, currentState.shapes, currentState.texts, currentState.images
         )
         _state.value = currentState.copy(
             paths = emptyList(),
@@ -304,97 +375,85 @@ class DrawingViewModel : ViewModel() {
     fun toggleColorPicker() {
         _state.value = _state.value.copy(
             showColorPicker = !_state.value.showColorPicker,
-            showToolSettings = false,
-            showLayers = false,
-            showTextEditor = false,
-            showFilters = false,
-            showHistory = false
+            showToolSettings = false, showLayers = false,
+            showTextEditor = false, showFilters = false, showHistory = false
         )
     }
 
     fun toggleToolSettings() {
         _state.value = _state.value.copy(
             showToolSettings = !_state.value.showToolSettings,
-            showColorPicker = false,
-            showLayers = false,
-            showTextEditor = false,
-            showFilters = false,
-            showHistory = false
+            showColorPicker = false, showLayers = false,
+            showTextEditor = false, showFilters = false, showHistory = false
         )
     }
 
     fun toggleLayers() {
         _state.value = _state.value.copy(
             showLayers = !_state.value.showLayers,
-            showColorPicker = false,
-            showToolSettings = false,
-            showTextEditor = false,
-            showFilters = false,
-            showHistory = false
+            showColorPicker = false, showToolSettings = false,
+            showTextEditor = false, showFilters = false, showHistory = false
         )
     }
 
     fun toggleTextEditor() {
         _state.value = _state.value.copy(
             showTextEditor = !_state.value.showTextEditor,
-            showColorPicker = false,
-            showToolSettings = false,
-            showLayers = false,
-            showFilters = false,
-            showHistory = false
+            showColorPicker = false, showToolSettings = false,
+            showLayers = false, showFilters = false, showHistory = false
         )
     }
 
     fun toggleFilters() {
         _state.value = _state.value.copy(
             showFilters = !_state.value.showFilters,
-            showColorPicker = false,
-            showToolSettings = false,
-            showLayers = false,
-            showTextEditor = false,
-            showHistory = false
+            showColorPicker = false, showToolSettings = false,
+            showLayers = false, showTextEditor = false, showHistory = false
         )
     }
 
     fun toggleHistory() {
         _state.value = _state.value.copy(
             showHistory = !_state.value.showHistory,
-            showColorPicker = false,
-            showToolSettings = false,
-            showLayers = false,
-            showTextEditor = false,
-            showFilters = false
+            showColorPicker = false, showToolSettings = false,
+            showLayers = false, showTextEditor = false, showFilters = false
         )
     }
 
     fun dismissAllPanels() {
         _state.value = _state.value.copy(
-            showColorPicker = false,
-            showToolSettings = false,
-            showLayers = false,
-            showTextEditor = false,
-            showFilters = false,
-            showHistory = false
+            showColorPicker = false, showToolSettings = false,
+            showLayers = false, showTextEditor = false,
+            showFilters = false, showHistory = false
         )
     }
 
     fun addLayer() {
         val currentState = _state.value
-        val newLayer = Layer(
-            id = UUID.randomUUID().toString(),
-            name = "Layer ${currentState.layers.size + 1}"
-        )
+        if (currentState.layers.size >= 100) return
+
+        val width = currentState.canvasSize.width.toInt()
+        val height = currentState.canvasSize.height.toInt()
+        val newLayerId = UUID.randomUUID().toString()
+        val newLayer = Layer(id = newLayerId, name = "Layer ${currentState.layers.size + 1}")
+
+        layerManager.createLayer(newLayerId, width, height)
+
         val action = DrawingAction.AddLayer(newLayer)
         _state.value = currentState.copy(
             layers = currentState.layers + newLayer,
-            activeLayerId = newLayer.id,
+            activeLayerId = newLayerId,
+            layerCount = currentState.layerCount + 1,
             undoStack = currentState.undoStack + action
         )
+        updateBitmapPoolStats()
     }
 
     fun removeLayer(layerId: String) {
         val currentState = _state.value
         if (currentState.layers.size <= 1) return
+
+        layerManager.removeLayer(layerId)
 
         val action = DrawingAction.RemoveLayer(layerId)
         _state.value = currentState.copy(
@@ -404,8 +463,10 @@ class DrawingViewModel : ViewModel() {
             shapes = currentState.shapes.filter { it.layerId != layerId },
             texts = currentState.texts.filter { it.layerId != layerId },
             images = currentState.images.filter { it.layerId != layerId },
+            layerCount = currentState.layerCount - 1,
             undoStack = currentState.undoStack + action
         )
+        updateBitmapPoolStats()
     }
 
     fun toggleLayerVisibility(layerId: String) {
@@ -446,11 +507,8 @@ class DrawingViewModel : ViewModel() {
     fun onImageAdded(uri: Uri, position: Offset, size: Size) {
         val currentState = _state.value
         val image = ImageElement(
-            uri = uri,
-            position = position,
-            size = size,
-            alpha = currentState.alpha,
-            layerId = currentState.activeLayerId
+            uri = uri, position = position, size = size,
+            alpha = currentState.alpha, layerId = currentState.activeLayerId
         )
         val action = DrawingAction.AddImage(image)
         _state.value = currentState.copy(
@@ -464,29 +522,21 @@ class DrawingViewModel : ViewModel() {
         val currentState = _state.value
         val updatedFilters = currentState.filters.toMutableList()
         val existingIndex = updatedFilters.indexOfFirst { it.type == type }
-
         if (existingIndex >= 0) {
             updatedFilters[existingIndex] = Filter(type, intensity)
         } else {
             updatedFilters.add(Filter(type, intensity))
         }
-
         _state.value = currentState.copy(filters = updatedFilters)
     }
 
     fun applyTemplate(templateIndex: Int) {
         val currentState = _state.value
         val templateSizes = listOf(
-            Size(1080f, 1920f),
-            Size(1080f, 1080f),
-            Size(1080f, 1920f),
-            Size(1280f, 720f),
-            Size(2480f, 3508f),
-            Size(1050f, 590f),
-            Size(2880f, 4320f),
-            Size(320f, 320f)
+            Size(1080f, 1920f), Size(1080f, 1080f), Size(1080f, 1920f),
+            Size(1280f, 720f), Size(2480f, 3508f), Size(1050f, 590f),
+            Size(2880f, 4320f), Size(320f, 320f)
         )
-
         if (templateIndex in templateSizes.indices) {
             _state.value = currentState.copy(
                 canvasSize = templateSizes[templateIndex],
@@ -499,16 +549,21 @@ class DrawingViewModel : ViewModel() {
         _state.value = _state.value.copy(canvasBackground = color)
     }
 
-    fun onHardnessChanged(hardness: Float) {
-        _state.value = _state.value.copy(
-            currentPath = _state.value.currentPath?.copy(hardness = hardness)
-        )
-    }
-
     private fun snapToGrid(position: Offset, gridSize: Float): Offset {
         return Offset(
             x = (position.x / gridSize).toInt() * gridSize,
             y = (position.y / gridSize).toInt() * gridSize
+        )
+    }
+
+    private fun updateBitmapPoolStats() {
+        val poolStats = bitmapPool.getStats()
+        _state.value = _state.value.copy(
+            bitmapPoolStats = BitmapPoolStats(
+                poolSize = poolStats.poolSize,
+                hitRate = poolStats.hitRate,
+                totalLayers = layerManager.getLayerCount()
+            )
         )
     }
 
@@ -521,10 +576,8 @@ class DrawingViewModel : ViewModel() {
                     put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/MiMoDraw")
                 }
             }
-
             val resolver = context.contentResolver
             val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-
             uri?.let {
                 resolver.openOutputStream(it)?.use { outputStream ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
@@ -535,5 +588,11 @@ class DrawingViewModel : ViewModel() {
             e.printStackTrace()
             false
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        layerManager.clear()
+        bitmapPool.clear()
     }
 }

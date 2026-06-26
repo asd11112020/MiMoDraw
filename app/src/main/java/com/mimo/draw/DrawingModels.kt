@@ -7,13 +7,15 @@ import androidx.compose.ui.graphics.Color
 
 data class DrawPath(
     val points: List<Offset>,
+    val pressures: List<Float> = emptyList(),
     val color: Color,
     val strokeWidth: Float,
     val tool: Tool,
     val alpha: Float = 1f,
     val layerId: String = "default",
     val blurRadius: Float = 0f,
-    val hardness: Float = 1f
+    val hardness: Float = 1f,
+    val usePressure: Boolean = false
 )
 
 data class ShapePath(
@@ -81,7 +83,8 @@ data class Filter(
 )
 
 enum class FilterType {
-    BLUR, SHARPEN, BRIGHTNESS, CONTRAST, SATURATION, HUE_ROTATE, INVERT, GRAYSCALE, SEPIA, VIGNETTE
+    BLUR, SHARPEN, BRIGHTNESS, CONTRAST, SATURATION, HUE_ROTATE, INVERT, GRAYSCALE, SEPIA, VIGNETTE,
+    NOISE, PIXELATE, EMBOSS
 }
 
 data class DrawingState(
@@ -126,7 +129,19 @@ data class DrawingState(
     val historyIndex: Int = -1,
     val isPanning: Boolean = false,
     val eyedropperActive: Boolean = false,
-    val eyedropperColor: Color? = null
+    val eyedropperColor: Color? = null,
+    val pressureEnabled: Boolean = false,
+    val pressureSensitivity: Float = 1.5f,
+    val gpuFiltersEnabled: Boolean = true,
+    val layerCount: Int = 1,
+    val maxLayers: Int = Int.MAX_VALUE,
+    val bitmapPoolStats: BitmapPoolStats? = null
+)
+
+data class BitmapPoolStats(
+    val poolSize: Int,
+    val hitRate: Float,
+    val totalLayers: Int
 )
 
 sealed class DrawingAction {
@@ -249,7 +264,10 @@ val FILTER_PRESETS = listOf(
     Filter(FilterType.INVERT, 0f),
     Filter(FilterType.GRAYSCALE, 0f),
     Filter(FilterType.SEPIA, 0f),
-    Filter(FilterType.VIGNETTE, 0f)
+    Filter(FilterType.VIGNETTE, 0f),
+    Filter(FilterType.NOISE, 0f),
+    Filter(FilterType.PIXELATE, 0f),
+    Filter(FilterType.EMBOSS, 0f)
 )
 
 val TEMPLATES = listOf(

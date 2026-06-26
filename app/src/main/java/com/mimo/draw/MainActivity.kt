@@ -2,6 +2,8 @@ package com.mimo.draw
 
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,9 +16,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
+    private var hardwarePressure = 0.5f
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -39,6 +44,19 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_MOVE ||
+            event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val pressure = event.getAxisValue(MotionEvent.AXIS_PRESSURE)
+            if (pressure > 0f) {
+                hardwarePressure = pressure.coerceIn(0.05f, 1f)
+            }
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    fun getHardwarePressure(): Float = hardwarePressure
 }
 
 @Composable
@@ -46,15 +64,22 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     var canvasSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
+    var initialized by remember { mutableStateOf(false) }
+    val activity = context as? MainActivity
+
+    LaunchedEffect(canvasSize) {
+        if (!initialized && canvasSize.width > 0 && canvasSize.height > 0) {
+            viewModel.initialize(canvasSize.width.toInt(), canvasSize.height.toInt())
+            initialized = true
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             TopBar(
                 state = state,
                 onUndo = viewModel::undo,
@@ -63,8 +88,7 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                 onSave = {
                     if (canvasSize.width > 0 && canvasSize.height > 0) {
                         val bitmap = Bitmap.createBitmap(
-                            canvasSize.width.toInt(),
-                            canvasSize.height.toInt(),
+                            canvasSize.width.toInt(), canvasSize.height.toInt(),
                             Bitmap.Config.ARGB_8888
                         )
                         val canvas = android.graphics.Canvas(bitmap)
@@ -74,43 +98,30 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                             val paint = android.graphics.Paint().apply {
                                 color = shapePath.color.copy(alpha = shapePath.alpha).toArgb()
                                 strokeWidth = shapePath.strokeWidth
-                                style = if (shapePath.filled) android.graphics.Paint.Style.FILL else android.graphics.Paint.Style.STROKE
+                                style = if (shapePath.filled) android.graphics.Paint.Style.FILL
+                                else android.graphics.Paint.Style.STROKE
                                 isAntiAlias = true
                             }
-
                             when (shapePath.shape) {
-                                Shape.LINE -> {
-                                    canvas.drawLine(
-                                        shapePath.start.x, shapePath.start.y,
-                                        shapePath.end.x, shapePath.end.y,
-                                        paint
-                                    )
-                                }
+                                Shape.LINE -> canvas.drawLine(
+                                    shapePath.start.x, shapePath.start.y,
+                                    shapePath.end.x, shapePath.end.y, paint
+                                )
                                 Shape.RECTANGLE, Shape.ROUNDED_RECTANGLE -> {
-                                    val left = minOf(shapePath.start.x, shapePath.end.x)
-                                    val top = minOf(shapePath.start.y, shapePath.end.y)
-                                    val right = maxOf(shapePath.start.x, shapePath.end.x)
-                                    val bottom = maxOf(shapePath.start.y, shapePath.end.y)
-                                    canvas.drawRect(left, top, right, bottom, paint)
+                                    val l = minOf(shapePath.start.x, shapePath.end.x)
+                                    val t = minOf(shapePath.start.y, shapePath.end.y)
+                                    val r = maxOf(shapePath.start.x, shapePath.end.x)
+                                    val b = maxOf(shapePath.start.y, shapePath.end.y)
+                                    canvas.drawRect(l, t, r, b, paint)
                                 }
                                 Shape.CIRCLE -> {
-                                    val centerX = (shapePath.start.x + shapePath.end.x) / 2
-                                    val centerY = (shapePath.start.y + shapePath.end.y) / 2
-                                    val radius = kotlin.math.sqrt(
-                                        (shapePath.end.x - shapePath.start.x) * (shapePath.end.x - shapePath.start.x) +
-                                        (shapePath.end.y - shapePath.start.y) * (shapePath.end.y - shapePath.start.y)
+                                    val cx = (shapePath.start.x + shapePath.end.x) / 2
+                                    val cy = (shapePath.start.y + shapePath.end.y) / 2
+                                    val rad = kotlin.math.sqrt(
+                                        (shapePath.end.x - shapePath.start.x).let { it * it } +
+                                        (shapePath.end.y - shapePath.start.y).let { it * it }
                                     ) / 2
-                                    canvas.drawCircle(centerX, centerY, radius, paint)
-                                }
-                                Shape.TRIANGLE -> {
-                                    val midX = (shapePath.start.x + shapePath.end.x) / 2
-                                    val path = android.graphics.Path().apply {
-                                        moveTo(midX, shapePath.start.y)
-                                        lineTo(shapePath.end.x, shapePath.end.y)
-                                        lineTo(shapePath.start.x, shapePath.end.y)
-                                        close()
-                                    }
-                                    canvas.drawPath(path, paint)
+                                    canvas.drawCircle(cx, cy, rad, paint)
                                 }
                                 else -> {}
                             }
@@ -119,21 +130,32 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                         state.paths.forEach { drawPath ->
                             val paint = android.graphics.Paint().apply {
                                 color = drawPath.color.copy(alpha = drawPath.alpha).toArgb()
-                                strokeWidth = drawPath.strokeWidth
                                 style = android.graphics.Paint.Style.STROKE
                                 strokeCap = android.graphics.Paint.Cap.ROUND
                                 strokeJoin = android.graphics.Paint.Join.ROUND
                                 isAntiAlias = true
                             }
-
                             if (drawPath.points.size >= 2) {
-                                val path = android.graphics.Path().apply {
-                                    moveTo(drawPath.points[0].x, drawPath.points[0].y)
+                                if (drawPath.usePressure && drawPath.pressures.size == drawPath.points.size) {
                                     for (i in 1 until drawPath.points.size) {
-                                        lineTo(drawPath.points[i].x, drawPath.points[i].y)
+                                        val segPaint = android.graphics.Paint(paint).apply {
+                                            strokeWidth = drawPath.strokeWidth * drawPath.pressures[i]
+                                        }
+                                        canvas.drawLine(
+                                            drawPath.points[i - 1].x, drawPath.points[i - 1].y,
+                                            drawPath.points[i].x, drawPath.points[i].y, segPaint
+                                        )
                                     }
+                                } else {
+                                    paint.strokeWidth = drawPath.strokeWidth
+                                    val path = android.graphics.Path().apply {
+                                        moveTo(drawPath.points[0].x, drawPath.points[0].y)
+                                        for (i in 1 until drawPath.points.size) {
+                                            lineTo(drawPath.points[i].x, drawPath.points[i].y)
+                                        }
+                                    }
+                                    canvas.drawPath(path, paint)
                                 }
-                                canvas.drawPath(path, paint)
                             }
                         }
 
@@ -143,12 +165,7 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                                 textSize = textElement.fontSize
                                 isAntiAlias = true
                             }
-                            canvas.drawText(
-                                textElement.text,
-                                textElement.position.x,
-                                textElement.position.y,
-                                paint
-                            )
+                            canvas.drawText(textElement.text, textElement.position.x, textElement.position.y, paint)
                         }
 
                         val saved = viewModel.saveToGallery(context, bitmap)
@@ -164,14 +181,18 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
             )
 
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                modifier = Modifier.weight(1f).fillMaxWidth()
             ) {
                 DrawingCanvas(
                     state = state,
-                    onTouchStart = viewModel::onTouchStart,
-                    onTouchMove = viewModel::onTouchMove,
+                    onTouchStart = { pos ->
+                        val pressure = activity?.getHardwarePressure() ?: 0.5f
+                        viewModel.onTouchStart(pos, pressure)
+                    },
+                    onTouchMove = { pos ->
+                        val pressure = activity?.getHardwarePressure() ?: 0.5f
+                        viewModel.onTouchMove(pos, pressure)
+                    },
                     onTouchEnd = viewModel::onTouchEnd,
                     onSizeChanged = { size -> canvasSize = size }
                 )
@@ -185,7 +206,6 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                         )
                     }
                 }
-
                 if (state.showToolSettings) {
                     Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         ToolSettingsPanel(
@@ -196,7 +216,6 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                         )
                     }
                 }
-
                 if (state.showLayers) {
                     Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         LayersPanel(
@@ -209,7 +228,6 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                         )
                     }
                 }
-
                 if (state.showFilters) {
                     Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         FiltersPanel(
@@ -219,7 +237,6 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                         )
                     }
                 }
-
                 if (state.showTextEditor) {
                     Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         TextEditorPanel(
@@ -233,7 +250,6 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                         )
                     }
                 }
-
                 if (state.showHistory) {
                     Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         HistoryPanel(
