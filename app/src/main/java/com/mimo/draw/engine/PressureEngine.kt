@@ -2,8 +2,7 @@ package com.mimo.draw.engine
 
 import android.view.MotionEvent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.PointerInputChange
-import androidx.compose.ui.input.pointer.PointerInputScope
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 class PressureEngine {
@@ -34,8 +33,12 @@ class PressureEngine {
         }
 
         val rawPressure = event.getAxisValue(MotionEvent.AXIS_PRESSURE).coerceIn(0f, 1f)
-        val tiltX = event.getAxisValue(MotionEvent.AXIS_TILT_X)
-        val tiltY = event.getAxisValue(MotionEvent.AXIS_TILT_Y)
+        val tiltX = try {
+            event.getAxisValue(43)
+        } catch (_: Exception) { 0f }
+        val tiltY = try {
+            event.getAxisValue(44)
+        } catch (_: Exception) { 0f }
 
         val smoothedPressure = smoothPressure(rawPressure)
 
@@ -79,7 +82,7 @@ class PressureEngine {
     private fun mapPressure(pressure: Float): Float {
         val normalized = (pressure - minPressure) / (maxPressure - minPressure)
         val clamped = normalized.coerceIn(0f, 1f)
-        return clamped.pow(sensitivity)
+        return clamped.toDouble().pow(sensitivity.toDouble()).toFloat()
     }
 
     fun reset() {
@@ -136,35 +139,5 @@ class PressureEngine {
 
     companion object {
         private const val PRESSURE_BUFFER_SIZE = 8
-    }
-}
-
-private fun Float.pow(exp: Float): Float {
-    return kotlin.math.pow(this.toDouble(), exp.toDouble()).toFloat()
-}
-
-fun PointerInputScope.setupPressureInput(
-    onPoint: (PressureEngine.PressurePoint) -> Unit,
-    onEnd: () -> Unit
-) {
-    awaitPointerEventScope {
-        while (true) {
-            val event = awaitPointerEvent()
-            event.changes.forEach { change ->
-                if (change.pressed) {
-                    val pressure = change.pressure
-                    onPoint(
-                        PressureEngine.PressurePoint(
-                            position = change.position,
-                            pressure = pressure.coerceIn(0.05f, 1f),
-                            timestamp = System.nanoTime()
-                        )
-                    )
-                }
-            }
-            if (event.changes.all { !it.pressed }) {
-                onEnd()
-            }
-        }
     }
 }

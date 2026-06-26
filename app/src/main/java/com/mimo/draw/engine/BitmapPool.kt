@@ -373,20 +373,19 @@ class FilterEngine(private val bitmapPool: BitmapPool) {
         val height = input.height
         val output = getTempBitmap(width, height)
 
-        val matrix = android.graphics.Matrix()
-        val kernel = floatArrayOf(
-            0f, -factor, 0f,
-            -factor, 1f + 4f * factor, -factor,
-            0f, -factor, 0f
-        )
-
         val canvas = Canvas(output)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
             isAntiAlias = false
-        }
-
-        val convolutionFilter = android.graphics.ConvolutionMatrix(3).apply {
-            set(matrix)
+            colorFilter = android.graphics.ColorMatrixColorFilter(
+                android.graphics.ColorMatrix().apply {
+                    val f = factor
+                    set(floatArrayOf(
+                        1f + 4f * f, -f, -f,
+                        -f, 1f + 4f * f, -f,
+                        -f, -f, 1f + 4f * f
+                    ))
+                }
+            )
         }
 
         canvas.drawBitmap(input, 0f, 0f, paint)
@@ -405,8 +404,4 @@ class FilterEngine(private val bitmapPool: BitmapPool) {
         }
         tempBitmaps.clear()
     }
-}
-
-private class ConvolutionMatrix(size: Int) {
-    fun set(matrix: android.graphics.Matrix) {}
 }
