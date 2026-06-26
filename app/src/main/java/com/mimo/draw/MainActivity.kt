@@ -7,6 +7,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -177,77 +181,107 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                     onSizeChanged = { size -> canvasSize = size }
                 )
 
-                AnimatedVisibility(
-                    visible = state.showColorPicker,
+                Box(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    ColorPickerPanel(
-                        selectedColor = state.selectedColor,
-                        onColorSelected = viewModel::onColorSelected,
-                        onDismiss = viewModel::toggleColorPicker
-                    )
+                    AnimatedVisibility(
+                        visible = state.showColorPicker,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                    ) {
+                        ColorPickerPanel(
+                            selectedColor = state.selectedColor,
+                            onColorSelected = viewModel::onColorSelected,
+                            onDismiss = viewModel::toggleColorPicker
+                        )
+                    }
                 }
 
-                AnimatedVisibility(
-                    visible = state.showToolSettings,
+                Box(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    ToolSettingsPanel(
-                        state = state,
-                        onStrokeWidthChanged = viewModel::onStrokeWidthChanged,
-                        onAlphaChanged = viewModel::onAlphaChanged,
-                        onDismiss = viewModel::toggleToolSettings
-                    )
+                    AnimatedVisibility(
+                        visible = state.showToolSettings,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                    ) {
+                        ToolSettingsPanel(
+                            state = state,
+                            onStrokeWidthChanged = viewModel::onStrokeWidthChanged,
+                            onAlphaChanged = viewModel::onAlphaChanged,
+                            onDismiss = viewModel::toggleToolSettings
+                        )
+                    }
                 }
 
-                AnimatedVisibility(
-                    visible = state.showLayers,
+                Box(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    LayersPanel(
-                        state = state,
-                        onAddLayer = viewModel::addLayer,
-                        onRemoveLayer = viewModel::removeLayer,
-                        onToggleVisibility = viewModel::toggleLayerVisibility,
-                        onSetActiveLayer = viewModel::setActiveLayer,
-                        onDismiss = viewModel::toggleLayers
-                    )
+                    AnimatedVisibility(
+                        visible = state.showLayers,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                    ) {
+                        LayersPanel(
+                            state = state,
+                            onAddLayer = viewModel::addLayer,
+                            onRemoveLayer = viewModel::removeLayer,
+                            onToggleVisibility = viewModel::toggleLayerVisibility,
+                            onSetActiveLayer = viewModel::setActiveLayer,
+                            onDismiss = viewModel::toggleLayers
+                        )
+                    }
                 }
 
-                AnimatedVisibility(
-                    visible = state.showFilters,
+                Box(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    FiltersPanel(
-                        state = state,
-                        onFilterChanged = viewModel::onFilterChanged,
-                        onDismiss = viewModel::toggleFilters
-                    )
+                    AnimatedVisibility(
+                        visible = state.showFilters,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                    ) {
+                        FiltersPanel(
+                            state = state,
+                            onFilterChanged = viewModel::onFilterChanged,
+                            onDismiss = viewModel::toggleFilters
+                        )
+                    }
                 }
 
-                AnimatedVisibility(
-                    visible = state.showTextEditor,
+                Box(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    TextEditorPanel(
-                        state = state,
-                        onTextChanged = viewModel::onTextChanged,
-                        onFontSizeChanged = viewModel::onTextFontSizeChanged,
-                        onFontFamilyChanged = viewModel::onTextFontFamilyChanged,
-                        onToggleBold = viewModel::toggleTextBold,
-                        onToggleItalic = viewModel::toggleTextItalic,
-                        onDismiss = viewModel::toggleTextEditor
-                    )
+                    AnimatedVisibility(
+                        visible = state.showTextEditor,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                    ) {
+                        TextEditorPanel(
+                            state = state,
+                            onTextChanged = viewModel::onTextChanged,
+                            onFontSizeChanged = viewModel::onTextFontSizeChanged,
+                            onFontFamilyChanged = viewModel::onTextFontFamilyChanged,
+                            onToggleBold = viewModel::toggleTextBold,
+                            onToggleItalic = viewModel::toggleTextItalic,
+                            onDismiss = viewModel::toggleTextEditor
+                        )
+                    }
                 }
 
-                AnimatedVisibility(
-                    visible = state.showHistory,
+                Box(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    HistoryPanel(
-                        state = state,
-                        onDismiss = viewModel::toggleHistory
-                    )
+                    AnimatedVisibility(
+                        visible = state.showHistory,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                    ) {
+                        HistoryPanel(
+                            state = state,
+                            onDismiss = viewModel::toggleHistory
+                        )
+                    }
                 }
             }
 
