@@ -6,11 +6,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -181,14 +176,8 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                     onSizeChanged = { size -> canvasSize = size }
                 )
 
-                Box(
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                ) {
-                    AnimatedVisibility(
-                        visible = state.showColorPicker,
-                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                    ) {
+                if (state.showColorPicker) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         ColorPickerPanel(
                             selectedColor = state.selectedColor,
                             onColorSelected = viewModel::onColorSelected,
@@ -197,14 +186,8 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                     }
                 }
 
-                Box(
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                ) {
-                    AnimatedVisibility(
-                        visible = state.showToolSettings,
-                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                    ) {
+                if (state.showToolSettings) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         ToolSettingsPanel(
                             state = state,
                             onStrokeWidthChanged = viewModel::onStrokeWidthChanged,
@@ -214,14 +197,8 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                     }
                 }
 
-                Box(
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                ) {
-                    AnimatedVisibility(
-                        visible = state.showLayers,
-                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                    ) {
+                if (state.showLayers) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         LayersPanel(
                             state = state,
                             onAddLayer = viewModel::addLayer,
@@ -233,14 +210,8 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                     }
                 }
 
-                Box(
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                ) {
-                    AnimatedVisibility(
-                        visible = state.showFilters,
-                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                    ) {
+                if (state.showFilters) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         FiltersPanel(
                             state = state,
                             onFilterChanged = viewModel::onFilterChanged,
@@ -249,14 +220,8 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                     }
                 }
 
-                Box(
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                ) {
-                    AnimatedVisibility(
-                        visible = state.showTextEditor,
-                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                    ) {
+                if (state.showTextEditor) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         TextEditorPanel(
                             state = state,
                             onTextChanged = viewModel::onTextChanged,
@@ -269,14 +234,8 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                     }
                 }
 
-                Box(
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                ) {
-                    AnimatedVisibility(
-                        visible = state.showHistory,
-                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                    ) {
+                if (state.showHistory) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         HistoryPanel(
                             state = state,
                             onDismiss = viewModel::toggleHistory
