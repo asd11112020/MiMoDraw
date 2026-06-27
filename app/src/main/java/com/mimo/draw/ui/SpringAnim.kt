@@ -60,7 +60,7 @@ fun <T> springAnimation(
     dampingRatio: Float = SpringConfig.DAMPING_RATIO_MEDIUM_BOUNCY,
     label: String = "spring"
 ): State<T> {
-    val spring = spring(
+    val spring = spring<T>(
         dampingRatio = dampingRatio,
         stiffness = stiffness
     )
