@@ -62,8 +62,7 @@ fun <T> springAnimation(
 ): State<T> {
     val spring = spring(
         dampingRatio = dampingRatio,
-        stiffness = stiffness,
-        visibilityThreshold = typeConverter.convertToVector(targetValue).value * 0.01f
+        stiffness = stiffness
     )
     return animateValueAsState(
         targetValue = targetValue,
