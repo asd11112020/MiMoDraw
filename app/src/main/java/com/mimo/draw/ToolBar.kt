@@ -21,6 +21,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mimo.draw.ui.HsvColor
+import com.mimo.draw.ui.HsvPalette
+import com.mimo.draw.ui.HsvUtils
 
 private val FILTER_CN = mapOf(
     "BLUR" to "模糊",
@@ -205,6 +208,8 @@ fun ToolButton(
 
 @Composable
 fun ColorPickerPanel(selectedColor: Color, onColorSelected: (Color) -> Unit, onDismiss: () -> Unit) {
+    val hsv = remember(selectedColor) { HsvUtils.fromArgb(selectedColor.hashCode()) }
+
     Surface(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
         color = Color(0xFF1A1A2E).copy(alpha = 0.95f),
@@ -215,21 +220,42 @@ fun ColorPickerPanel(selectedColor: Color, onColorSelected: (Color) -> Unit, onD
                 Text("调色板", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "关闭", tint = Color.White) }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            HsvPalette(
+                currentColor = hsv,
+                onColorChanged = { newHsv -> onColorSelected(newHsv.toComposeColor()) },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(selectedColor)
+                    .border(2.dp, Color.White, CircleShape))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(String.format("#%06X", selectedColor.hashCode() and 0xFFFFFF),
+                    color = Color.Gray, fontSize = 12.sp)
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("预设颜色", color = Color.Gray, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(6.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(DEFAULT_COLORS) { color ->
-                    Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(color)
+                    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color)
                         .border(if (selectedColor == color) 3.dp else 1.dp,
-                            if (selectedColor == color) Color.White else Color.Gray, CircleShape)
+                            if (selectedColor == color) Color.White else Color(0xFF444444), CircleShape)
                         .clickable { onColorSelected(color) })
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(TOOL_COLORS) { color ->
-                    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color)
+                    Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(color)
                         .border(if (selectedColor == color) 3.dp else 1.dp,
-                            if (selectedColor == color) Color.White else Color.Gray, CircleShape)
+                            if (selectedColor == color) Color.White else Color(0xFF444444), CircleShape)
                         .clickable { onColorSelected(color) })
                 }
             }
