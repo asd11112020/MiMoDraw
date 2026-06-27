@@ -109,7 +109,7 @@ data class DrawingState(
     val showTemplates: Boolean = false,
     val showHistory: Boolean = false,
     val showExportOptions: Boolean = false,
-    val layers: List<Layer> = listOf(Layer("default", "Layer 1")),
+    val layers: List<Layer> = listOf(Layer("default", "图层 1")),
     val activeLayerId: String = "default",
     val zoom: Float = 1f,
     val panOffset: Offset = Offset.Zero,

@@ -116,7 +116,7 @@ class DrawingViewModel : ViewModel() {
             }
             currentState.selectedTool == Tool.TEXT -> {
                 val text = TextElement(
-                    text = "Tap to edit",
+                    text = "点击编辑",
                     position = adjustedPosition,
                     color = currentState.selectedColor,
                     fontSize = currentState.textFontSize,
@@ -435,7 +435,7 @@ class DrawingViewModel : ViewModel() {
         val width = currentState.canvasSize.width.toInt()
         val height = currentState.canvasSize.height.toInt()
         val newLayerId = UUID.randomUUID().toString()
-        val newLayer = Layer(id = newLayerId, name = "Layer ${currentState.layers.size + 1}")
+        val newLayer = Layer(id = newLayerId, name = "图层 ${currentState.layers.size + 1}")
 
         layerManager.createLayer(newLayerId, width, height)
 

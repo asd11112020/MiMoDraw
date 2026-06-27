@@ -171,7 +171,7 @@ fun DrawingApp(viewModel: DrawingViewModel = viewModel()) {
                         val saved = viewModel.saveToGallery(context, bitmap)
                         Toast.makeText(
                             context,
-                            if (saved) "Saved to gallery!" else "Failed to save",
+                            if (saved) "已保存到相册！" else "保存失败",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
